@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Zap, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { User } from '../types';
-
+import { apiRequest } from '../api/api';
 const DEMO_USERS = [
   { email: 'demo@queueless.ai', password: 'demo123', role: 'customer' as const, name: 'Alex Johnson' },
   { email: 'admin@queueless.ai', password: 'admin123', role: 'admin' as const, name: 'Dr. Admin User' },
@@ -19,32 +19,44 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-    await new Promise((r) => setTimeout(r, 800)); // simulate network
+  try {
+    const data = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim(),
+        password: password,
+      }),
+    });
 
-    const matched = DEMO_USERS.find(
-      (u) => u.email === email && u.password === password
+    const user: User = {
+      id: data.user_id,
+      email: email.trim(),
+      name: data.name,
+      role: data.role,
+      created_at: new Date().toISOString(),
+    };
+
+    login(user, data.token);
+
+    navigate(data.role === 'admin' ? '/admin' : '/dashboard');
+
+  } catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : 'Login failed. Please try again.'
     );
-
-    if (matched) {
-      const user: User = {
-        id: `user-${matched.role}`,
-        email: matched.email,
-        name: matched.name,
-        role: matched.role,
-        created_at: new Date().toISOString(),
-      };
-      login(user, `demo-token-${Date.now()}`);
-      navigate(matched.role === 'admin' ? '/admin' : '/dashboard');
-    } else {
-      setError('Invalid email or password. Try the demo credentials below.');
-    }
+  } finally {
     setLoading(false);
-  };
+  }
+};
+
 
   const demoLogin = (type: 'customer' | 'admin') => {
     const creds = DEMO_USERS.find((u) => u.role === type)!;
